@@ -15,12 +15,26 @@ using System.Collections;
 method Main(_noArgsParameter: seq<seq<char>>)
 {
   var locker := new Postomat();
+  var codes: map<int, int> := map[];
   locker.AddParcel(101, 1, 1111, 50);
   var success := locker.PayForParcel(101, 49);
-  locker.RetrieveParcel(101, 1, 1111, success);
-  success := locker.PayForParcel(101, 50);
-  locker.RetrieveParcel(101, 1, 1110, success);
-  locker.RetrieveParcel(101, 1, 1111, success);
+  var retrieved := locker.RetrieveParcel(101, 1, 1111, success);
+  if !retrieved {
+    success := locker.PayForParcel(101, 50);
+    var retrieved2 := locker.RetrieveParcel(101, 1, 1110, success);
+    if !retrieved2 {
+      var retrieved3 := locker.RetrieveParcel(101, 1, 1111, success);
+      if !retrieved3 {
+        print ""unexpected retrieved3"";
+      } else {
+        print ""OK!"";
+      }
+    } else {
+      print ""unexpected retrieved2"";
+    }
+  } else {
+    print ""unexpected retrieved"";
+  }
 }
 
 class Postomat {
@@ -29,6 +43,9 @@ class Postomat {
   var payments: map<int, int>
 
   constructor ()
+    ensures cells.Keys == {}
+    ensures codes.Keys == {}
+    ensures payments.Keys == {}
   {
     cells := map[];
     codes := map[];
@@ -39,6 +56,9 @@ class Postomat {
     requires cellId !in cells || cells[cellId] == false
     requires parcelId !in codes
     modifies this
+    ensures cellId in cells && cells[cellId] == true
+    ensures parcelId in codes
+    ensures parcelId in payments
     decreases parcelId, cellId, code, amount
   {
     cells := cells[cellId := true];
@@ -49,7 +69,8 @@ class Postomat {
 
   method PayForParcel(parcelId: int, balance: int) returns (paid: bool)
     requires parcelId in payments
-    modifies this
+    modifies this`payments
+    ensures parcelId in payments
     decreases parcelId, balance
   {
     if payments[parcelId] == 0 {
@@ -67,19 +88,24 @@ class Postomat {
   }
 
   method RetrieveParcel(parcelId: int, cellId: int, code: int, paid: bool)
+      returns (result: bool)
     requires cellId in cells && cells[cellId] == true
     requires parcelId in codes
-    modifies this
+    modifies this`cells
+    ensures result == true || (cellId in cells && cells[cellId] == true)
     decreases parcelId, cellId, code, paid
   {
     if codes[parcelId] != code {
       print ""Неправильний код для посилки "", parcelId, ""\n"";
+      return false;
     } else {
       if paid {
         cells := cells[cellId := false];
         print ""Посилка "", parcelId, "" видана\n"";
+        return true;
       } else {
         print ""Оплата не проведена, видача неможлива\n"";
+        return false;
       }
     }
   }
@@ -5765,17 +5791,41 @@ namespace _module {
       Postomat _nw0 = new Postomat();
       _nw0.__ctor();
       _0_locker = _nw0;
+      Dafny.IMap<BigInteger,BigInteger> _1_codes;
+      _1_codes = Dafny.Map<BigInteger, BigInteger>.FromElements();
       (_0_locker).AddParcel(new BigInteger(101), BigInteger.One, new BigInteger(1111), new BigInteger(50));
-      bool _1_success;
+      bool _2_success;
       bool _out0;
       _out0 = (_0_locker).PayForParcel(new BigInteger(101), new BigInteger(49));
-      _1_success = _out0;
-      (_0_locker).RetrieveParcel(new BigInteger(101), BigInteger.One, new BigInteger(1111), _1_success);
+      _2_success = _out0;
+      bool _3_retrieved;
       bool _out1;
-      _out1 = (_0_locker).PayForParcel(new BigInteger(101), new BigInteger(50));
-      _1_success = _out1;
-      (_0_locker).RetrieveParcel(new BigInteger(101), BigInteger.One, new BigInteger(1110), _1_success);
-      (_0_locker).RetrieveParcel(new BigInteger(101), BigInteger.One, new BigInteger(1111), _1_success);
+      _out1 = (_0_locker).RetrieveParcel(new BigInteger(101), BigInteger.One, new BigInteger(1111), _2_success);
+      _3_retrieved = _out1;
+      if (!(_3_retrieved)) {
+        bool _out2;
+        _out2 = (_0_locker).PayForParcel(new BigInteger(101), new BigInteger(50));
+        _2_success = _out2;
+        bool _4_retrieved2;
+        bool _out3;
+        _out3 = (_0_locker).RetrieveParcel(new BigInteger(101), BigInteger.One, new BigInteger(1110), _2_success);
+        _4_retrieved2 = _out3;
+        if (!(_4_retrieved2)) {
+          bool _5_retrieved3;
+          bool _out4;
+          _out4 = (_0_locker).RetrieveParcel(new BigInteger(101), BigInteger.One, new BigInteger(1111), _2_success);
+          _5_retrieved3 = _out4;
+          if (!(_5_retrieved3)) {
+            Dafny.Helpers.Print((Dafny.Sequence<Dafny.Rune>.UnicodeFromString("unexpected retrieved3")).ToVerbatimString(false));
+          } else {
+            Dafny.Helpers.Print((Dafny.Sequence<Dafny.Rune>.UnicodeFromString("OK!")).ToVerbatimString(false));
+          }
+        } else {
+          Dafny.Helpers.Print((Dafny.Sequence<Dafny.Rune>.UnicodeFromString("unexpected retrieved2")).ToVerbatimString(false));
+        }
+      } else {
+        Dafny.Helpers.Print((Dafny.Sequence<Dafny.Rune>.UnicodeFromString("unexpected retrieved")).ToVerbatimString(false));
+      }
     }
   }
 
@@ -5825,22 +5875,30 @@ namespace _module {
       }
       return paid;
     }
-    public void RetrieveParcel(BigInteger parcelId, BigInteger cellId, BigInteger code, bool paid)
+    public bool RetrieveParcel(BigInteger parcelId, BigInteger cellId, BigInteger code, bool paid)
     {
+      bool result = false;
       if ((Dafny.Map<BigInteger, BigInteger>.Select(this.codes,parcelId)) != (code)) {
         Dafny.Helpers.Print((Dafny.Sequence<Dafny.Rune>.UnicodeFromString("Неправильний код для посилки ")).ToVerbatimString(false));
         Dafny.Helpers.Print((parcelId));
         Dafny.Helpers.Print((Dafny.Sequence<Dafny.Rune>.UnicodeFromString("\n")).ToVerbatimString(false));
+        result = false;
+        return result;
       } else {
         if (paid) {
           (this).cells = Dafny.Map<BigInteger, bool>.Update(this.cells, cellId, false);
           Dafny.Helpers.Print((Dafny.Sequence<Dafny.Rune>.UnicodeFromString("Посилка ")).ToVerbatimString(false));
           Dafny.Helpers.Print((parcelId));
           Dafny.Helpers.Print((Dafny.Sequence<Dafny.Rune>.UnicodeFromString(" видана\n")).ToVerbatimString(false));
+          result = true;
+          return result;
         } else {
           Dafny.Helpers.Print((Dafny.Sequence<Dafny.Rune>.UnicodeFromString("Оплата не проведена, видача неможлива\n")).ToVerbatimString(false));
+          result = false;
+          return result;
         }
       }
+      return result;
     }
   }
 } // end of namespace _module
